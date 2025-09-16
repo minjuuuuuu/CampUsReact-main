@@ -145,26 +145,12 @@ export default function BoardRegist({ onClose }) {
         lecId, boardName: title.trim(), category: "자유", file: !!file
       });
 
-      const res = await createBoardMultipart(fd);
-      const newId =
-        res?.data?.boardId ||
-        res?.data?.id ||
-        res?.data?.board_id ||
-        res?.data?.data?.boardId ||
-        null;
+      await createBoardMultipart(fd);
 
       alert("등록되었습니다.");
-
-      // 새 글 id 있으면 상세로 바로 이동(가장 확실)
-      if (newId) {
-        navigate(`/board/detail/${newId}`, { replace: true });
-        return;
-      }
-
-      // id 없으면 목록으로 이동 + 전공/힌트 전달
       navigate(
         `/board?lecId=${encodeURIComponent(lecId)}&ts=${Date.now()}`,
-        { replace: true, state: { lecId, justCreatedTitle: title } }
+        { replace: true, state: { lecId } }
       );
     } catch (e) {
       console.error("게시글 등록 실패:", e?.response?.data || e);
