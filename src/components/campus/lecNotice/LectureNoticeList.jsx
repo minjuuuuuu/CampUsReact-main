@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
+
 import {
   dropdownArrow, searchIcon, listArrow,
   pageArrow1, pageArrow2, pageArrow3, pageArrow4
@@ -11,7 +12,11 @@ import {
   WHContainer, DateBox, Title, Button,
   PageNation, PageArrowButton, PageNumText, PageNumberButton, PageText
 } from "../commons/WHComponent";
-import { getLecNoticeList, getUserSession } from "../api.js";
+import { 
+  getLecNoticeList, 
+  getUserSession, 
+  changeLecMajor
+} from "../api.js";
 import LectureNoticeRegist from "./LectureNoticeRegist";
 
 function LectureNoticeList() {
@@ -31,7 +36,6 @@ function LectureNoticeList() {
 
   const resolveIds = () => {
     const q = new URLSearchParams(location.search);
-
     const sessionUser = (() => {
       try { return JSON.parse(sessionStorage.getItem("user") || "null"); } catch { return null; }
     })();
@@ -45,9 +49,7 @@ function LectureNoticeList() {
 
     const lec =
       q.get("lecId") ||
-      q.get("lec_id") ||
       sessionStorage.getItem("lecId") ||
-      sessionStorage.getItem("lec_id") ||
       localStorage.getItem("selectedLecId") ||
       "";
 
@@ -99,7 +101,7 @@ function LectureNoticeList() {
     const q = new URLSearchParams(location.search);
     let changed = false;
     if (!q.get("memId") && memId) { q.set("memId", memId); changed = true; }
-    if (!q.get("lecId") && lecId) { q.set("lecId", lecId); q.set("lec_id", lecId); changed = true; }
+    if (!q.get("lecId") && lecId) { q.set("lecId", lecId); changed = true; }
     if (changed) navigate({ search: `?${q.toString()}` }, { replace: true });
   }, [memId, lecId]);
 
@@ -108,7 +110,6 @@ function LectureNoticeList() {
       if (memId) sessionStorage.setItem("memId", String(memId));
       if (lecId) {
         sessionStorage.setItem("lecId", String(lecId));
-        sessionStorage.setItem("lec_id", String(lecId));
         localStorage.setItem("selectedLecId", String(lecId));
       }
     } catch {}
@@ -136,6 +137,9 @@ function LectureNoticeList() {
         searchType: nextType,
         keyword: nextKeyword.trim(),
       });
+
+      console.log("📌 응답:", data);
+
       setItems(data?.items || []);
       setTotalPage(data?.page?.totalPage || 1);
       setPage(nextPage);
@@ -154,11 +158,6 @@ function LectureNoticeList() {
     load(nextPage, nextType, nextKeyword);
   };
 
-  const goFirst = () => load(1);
-  const goPrev  = () => load(Math.max(1, page - 1));
-  const goNext  = () => load(Math.min(totalPage, page + 1));
-  const goLast  = () => load(totalPage);
-
   const openDetail = (item) => {
     navigate(`${item.lecNoticeId}?memId=${encodeURIComponent(memId)}&lecId=${encodeURIComponent(lecId)}`, {
       state: { item, from: { page, searchType, keyword, memId, lecId } }
@@ -169,18 +168,16 @@ function LectureNoticeList() {
     const p = new URLSearchParams(location.search);
     p.set("memId", memId);
     p.set("lecId", lecId);
-    p.set("lec_id", lecId);
     p.set("write", "1");
     navigate({ search: `?${p.toString()}` }, { replace: true });
     try {
       sessionStorage.setItem("memId", String(memId));
       sessionStorage.setItem("lecId", String(lecId));
-      sessionStorage.setItem("lec_id", String(lecId));
       localStorage.setItem("selectedLecId", String(lecId));
     } catch {}
   };
 
-  const handleRegistClick = () => {
+  const handleRegistClick = async () => {
     const r = resolveIds();
     if (!r.memId || !r.lecId) {
       alert("memId / lecId가 없어 글쓰기를 열 수 없습니다.");
@@ -190,6 +187,13 @@ function LectureNoticeList() {
     if (r.lecId !== lecId) setLecId(r.lecId);
 
     setOpen(false);
+
+    try {
+      await changeLecMajor(r.lecId);
+    } catch (e) {
+      console.warn("changeMajor 실패 (무시 가능):", e);
+    }
+
     primeRegistContext();
     setShowRegist(true);
     window.scrollTo(0, 0);
@@ -275,13 +279,56 @@ function LectureNoticeList() {
         ))
       )}
 
+      {/* ✅ 페이지네이션 */}
       <nav>
         <PageNation>
-          <PageArrowButton onClick={goFirst}><PageText href="#"><img src={pageArrow1} style={{ width: 13, height: 10, marginLeft: 6 }} alt="첫 페이지" /></PageText></PageArrowButton>
-          <PageArrowButton onClick={goPrev}><PageText href="#"><img src={pageArrow2} style={{ width: 6, height: 10, marginLeft: 10 }} alt="이전" /></PageText></PageArrowButton>
-          <PageNumberButton><PageNumText href="#">{page}</PageNumText></PageNumberButton>
-          <PageArrowButton onClick={goNext}><PageText href="#"><img src={pageArrow3} style={{ width: 6, height: 10, marginLeft: 10 }} alt="다음" /></PageText></PageArrowButton>
-          <PageArrowButton onClick={goLast}><PageText href="#"><img src={pageArrow4} style={{ width: 13, height: 10, marginLeft: 6 }} alt="마지막 페이지" /></PageText></PageArrowButton>
+          {/* 처음 */}
+          <PageArrowButton onClick={() => load(1)} disabled={page === 1}>
+            <PageText href="#"><img src={pageArrow1} style={{ width: 13, height: 10, marginLeft: 6 }} alt="첫 페이지" /></PageText>
+          </PageArrowButton>
+
+          {/* 이전 */}
+          <PageArrowButton onClick={() => load(Math.max(1, page - 1))} disabled={page === 1}>
+            <PageText href="#"><img src={pageArrow2} style={{ width: 6, height: 10, marginLeft: 10 }} alt="이전" /></PageText>
+          </PageArrowButton>
+
+          {/* 숫자 버튼 */}
+          {(() => {
+            const visibleCount = 5;
+            const start = Math.max(1, page - Math.floor(visibleCount / 2));
+            const end = Math.min(totalPage, start + visibleCount - 1);
+            const pages = [];
+            for (let i = start; i <= end; i++) {
+              pages.push(i);
+            }
+            return pages.map((p) => (
+              <PageNumberButton key={p}>
+                <PageNumText
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    load(p);
+                  }}
+                  style={{
+                    fontWeight: p === page ? "bold" : "normal",
+                    textDecoration: p === page ? "underline" : "none",
+                  }}
+                >
+                  {p}
+                </PageNumText>
+              </PageNumberButton>
+            ));
+          })()}
+
+          {/* 다음 */}
+          <PageArrowButton onClick={() => load(Math.min(totalPage, page + 1))} disabled={page === totalPage}>
+            <PageText href="#"><img src={pageArrow3} style={{ width: 6, height: 10, marginLeft: 10 }} alt="다음" /></PageText>
+          </PageArrowButton>
+
+          {/* 마지막 */}
+          <PageArrowButton onClick={() => load(totalPage)} disabled={page === totalPage}>
+            <PageText href="#"><img src={pageArrow4} style={{ width: 13, height: 10, marginLeft: 6 }} alt="마지막 페이지" /></PageText>
+          </PageArrowButton>
         </PageNation>
       </nav>
 
@@ -294,7 +341,6 @@ function LectureNoticeList() {
           <LectureNoticeRegist
             memId={memId}
             lecId={lecId}
-            lec_id={lecId}
             onClose={handleCloseFromRegist}
           />
         </div>

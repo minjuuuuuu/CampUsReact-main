@@ -37,7 +37,7 @@ const FileLabel = styled.label`
 `;
 const FileText = styled.span`font-size:12px;color:#707070;`;
 
-export default function LectureNoticeRegist({ onClose, memId:propMemId, lecId:propLecId, lec_id:propLec_id }) {
+export default function LectureNoticeRegist({ onClose, memId:propMemId, lecId:propLecId }) {
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -48,11 +48,8 @@ export default function LectureNoticeRegist({ onClose, memId:propMemId, lecId:pr
   const search = new URLSearchParams(location.search);
   const resolvedLecId =
     propLecId ||
-    propLec_id ||
     search.get("lecId") ||
-    search.get("lec_id") ||
     sessionStorage.getItem("lecId") ||
-    sessionStorage.getItem("lec_id") ||
     localStorage.getItem("selectedLecId") ||
     "";
 
@@ -90,9 +87,7 @@ export default function LectureNoticeRegist({ onClose, memId:propMemId, lecId:pr
 
   const goBack = () => {
     if (typeof onClose === "function") { onClose(false); return; }
-    const listPath = location.pathname.replace(/\/[^/]+$/, "");
-    if (listPath && listPath !== location.pathname) navigate(listPath, { replace:true });
-    else navigate(-1);
+    navigate(`/notice?memId=${resolvedProfesId}&lecId=${resolvedLecId}`, { replace:true });
   };
 
   const handleFileChange = (e) => {
@@ -102,41 +97,45 @@ export default function LectureNoticeRegist({ onClose, memId:propMemId, lecId:pr
   };
 
   const handleSubmit = async () => {
-    if (submitting) return;
+  if (submitting) return;
 
-    const html = getContentHtml();
-    const text = html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s+/g, " ").trim();
+  const html = getContentHtml();
+  const text = html.replace(/<[^>]*>/g, "").replace(/&nbsp;|\s+/g, " ").trim();
 
-    if (!title.trim()) { alert("제목을 입력해주세요."); return; }
-    if (!text) { alert("내용을 입력해주세요."); return; }
-    if (!resolvedLecId) { alert("강의(전공) 선택 정보가 없습니다."); return; }
-    if (!resolvedProfesId) { alert("작성자 정보가 없습니다(로그인 세션 확인)."); return; }
+  if (!title.trim()) { alert("제목을 입력해주세요."); return; }
+  if (!text) { alert("내용을 입력해주세요."); return; }
+  if (!resolvedLecId) { alert("강의(전공) 선택 정보가 없습니다."); return; }
+  if (!resolvedProfesId) { alert("작성자 정보가 없습니다(로그인 세션 확인)."); return; }
 
-    try {
-      setSubmitting(true);
+  try {
+    setSubmitting(true);
+    try { await changeLecMajor(resolvedLecId); } catch {}
 
-      try { await changeLecMajor(resolvedLecId); } catch {}
+    const fd = new FormData();
+    fd.append("memId", resolvedProfesId)
+    fd.append("lecId", resolvedLecId);
+    fd.append("profesId", resolvedProfesId);
+    fd.append("lecNoticeName", title.trim());
+    fd.append("lecNoticeDesc", html);
+    if (file) fd.append("files", file);
 
-      const fd = new FormData();
-      fd.append("lecId", resolvedLecId);
-      fd.append("lec_id", resolvedLecId);
-      fd.append("profesId", resolvedProfesId);
-      fd.append("lecNoticeName", title.trim());
-      fd.append("lecNoticeDesc", html);
-      if (file) fd.append("files", file);
-
-      await createLecNoticeMultipart(fd);
-
+    const res = await createLecNoticeMultipart(fd);  
+    console.log("📌 등록 API 응답:", res);
+    if (res.ok) {
       alert("등록되었습니다.");
       if (typeof onClose === "function") onClose(true);
-      else goBack();
-    } catch (e) {
-      console.error("공지 등록 실패:", e?.response?.data || e);
-      alert("등록에 실패했습니다.");
-    } finally {
-      setSubmitting(false);
+      else navigate(`/notice?memId=${resolvedProfesId}&lecId=${resolvedLecId}`, { replace:true });
+    } else {
+      alert("등록 실패: " + (res.reason || "알 수 없는 오류"));
     }
-  };
+
+  } catch (e) {
+    console.error("공지 등록 실패:", e?.response?.data || e);
+    alert("등록에 실패했습니다.");
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   return (
     <div>

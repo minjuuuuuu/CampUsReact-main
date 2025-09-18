@@ -1,10 +1,18 @@
 import React, { useEffect, useState } from "react";
 import styled from "styled-components";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
-import { getBoardDetail, deleteBoard, boardDownloadUrl } from "../api";
+import {
+  getBoardDetail,
+  deleteBoard,
+  boardDownloadUrl,
+  getReplyList,
+  createReply,
+  deleteReply,
+  updateReply,   // ✅ 수정 API 추가
+} from "../api";
 import { clip } from "../img";
 
-/* ===== 스타일 ===== */
+// ===== styled-components =====
 const MobileShell = styled.div`width: 100vw; background: #f7f7f7;`;
 const TopBar = styled.div`display: flex; align-items: center; margin: 6px 0 10px;`;
 const PageTitle = styled.div`font-size: 18px; font-weight: 700; margin-left: 10px;`;
@@ -18,14 +26,20 @@ const ModifyBtn = styled.button`
   border: none; background: #2EC4B6; color: #fff; border-radius: 5px; cursor: pointer;
 `;
 const PageDivider = styled.div`height: 2px; background: #2EC4B6; margin-bottom: 13px;`;
-const Card = styled.div`background: #fff;`;
+const Card = styled.div`
+  background: #fff;
+  width: 412px;
+  height: 500px;
+  margin: 0 auto;
+  overflow-y: auto;
+`;
 const CardHead = styled.h3`
   font-size: 16px; font-weight: 700; margin: 0 0 8px; line-height: 1.4; margin-left: 10px;
 `;
 const Meta = styled.div`font-size: 12px; color: #98a1a8; margin: 0 0 12px 10px;`;
 const BodyText = styled.div`
   font-size: 14px; color: #6b7680; line-height: 1.7; white-space: pre-line;
-  margin: 0 0 100px 10px;
+  margin: 0 0 30px 10px;
 `;
 const Attachment = styled.div`
   display: flex; align-items: center; gap: 10px; border-radius: 12px; margin-left: 10px;
@@ -36,14 +50,95 @@ const AttachmentName = styled.a`
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   &:hover { text-decoration: underline; }
 `;
-const CardFooter = styled.div`display: flex; justify-content: flex-end;`;
+const CardFooter = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  padding-right: 30px;
+  margin-top: 120px;
+`;
 const Button = styled.button`
   width: 50px; height: 26px; padding: 0 12px; font-size: 12px; cursor: pointer;
   border: 1px solid #aaa; background: #fff; color: #aaa; border-radius: 5px; margin: 0 10px 10px 0;
 `;
-const CardHr = styled.div`width: 372px; height: 1px; background: #D9D9D9; border: 0; margin: 15px 0;`;
+const CardHr = styled.div`width: 100%; height: 1px; background: #D9D9D9; border: 0; margin: 15px 0;`;
 
-/* ===== 유틸 ===== */
+const ReplySection = styled.div`
+  width: 412px;
+  height: 260px;
+  margin: 20px auto 0;
+  background: #fff;
+  padding: 15px;
+  overflow-y: auto;
+`;
+const ReplyTitle = styled.h4`
+  margin: 0 0 10px;
+  font-size: 15px;
+  font-weight: 700;
+  border-bottom: 2px solid #2EC4B6;
+  padding-bottom: 6px;
+`;
+const ReplyItem = styled.div`
+  border-bottom: 1px solid #ddd;
+  padding: 10px 0;
+  font-size: 14px;
+`;
+const ReplyTop = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+`;
+const ReplyWriter = styled.span`font-weight: 600;`;
+const ReplyDate = styled.span`
+  color: #999;
+  font-size: 12px;
+  margin-left: 6px;
+`;
+const ReplyText = styled.div`
+  margin-top: 4px;
+  color: #444;
+  line-height: 1.6;
+`;
+const ReplyActions = styled.div`display: flex; gap: 6px;`;
+const ReplyBtnSmall = styled.button`
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid ${(p) => (p.primary ? "#2EC4B6" : "#ccc")};
+  background: ${(p) => (p.primary ? "#2EC4B6" : "#f7f7f7")};
+  color: ${(p) => (p.primary ? "#fff" : "#666")};
+`;
+
+const ReplyInputBox = styled.div`margin-top: 15px;`;
+const ReplyHeader = styled.div`
+  font-size: 13px; font-weight: 600; color: #555; margin-bottom: 4px;
+`;
+const ReplyTextarea = styled.textarea`
+  width: 100%;
+  min-height: 60px;
+  resize: none;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  color: #444;
+  &::placeholder { color: #EEE9E9; }
+`;
+const ReplySubmitBtn = styled.button`
+  margin-top: 6px;
+  margin-left: auto;
+  display: block;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: none;
+  background: #2EC4B6;
+  color: #fff;
+  font-weight: 600;
+`;
+
+// 날짜 포맷 함수
 const fmtDate = (v) => {
   if (!v) return "";
   try {
@@ -52,12 +147,9 @@ const fmtDate = (v) => {
       const y = d.getFullYear();
       const m = String(d.getMonth() + 1).padStart(2, "0");
       const dd = String(d.getDate()).padStart(2, "0");
-      const hh = String(d.getHours()).padStart(2, "0");
-      const mm = String(d.getMinutes()).padStart(2, "0");
-      return `${y}-${m}-${dd}${hh + mm !== "0000" ? ` ${hh}:${mm}` : ""}`;
+      return `${y}-${m}-${dd}`;
     }
-    const s = String(v);
-    return s.length >= 10 ? s.slice(0, 10) : s;
+    return String(v).slice(0, 10);
   } catch {
     return "";
   }
@@ -71,7 +163,23 @@ export default function BoardDetail() {
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // 데이터 로드
+  const [replies, setReplies] = useState([]);
+  const [newReply, setNewReply] = useState("");
+
+  const [editingId, setEditingId] = useState(null); // ✅ 수정 중인 댓글
+  const [editText, setEditText] = useState("");     // ✅ 수정 텍스트
+
+  // 댓글 목록 불러오기 함수
+  const loadReplies = async () => {
+    try {
+      const { data } = await getReplyList(id);
+      setReplies(data.items || []);
+    } catch (e) {
+      console.error("댓글 목록 로드 실패:", e);
+    }
+  };
+
+  // 게시글 로드
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -90,6 +198,11 @@ export default function BoardDetail() {
     })();
   }, [id]);
 
+  // 댓글 로드
+  useEffect(() => {
+    loadReplies();
+  }, [id]);
+
   const goList = () => {
     const from = location.state?.from;
     if (from) navigate("/board", { state: from, replace: true });
@@ -105,6 +218,37 @@ export default function BoardDetail() {
     } catch (e) {
       console.error(e);
       alert("삭제에 실패했습니다.");
+    }
+  };
+
+  const onReplySubmit = async () => {
+    if (!newReply.trim()) return;
+    try {
+      const { data } = await createReply(id, newReply.trim());
+      if (data.ok) {
+        setNewReply("");
+        loadReplies();
+      } else {
+        alert("댓글 등록 실패: " + data.reason);
+      }
+    } catch (e) {
+      console.error("댓글 등록 실패:", e);
+    }
+  };
+
+  const onReplyUpdate = async (rno, newText) => {
+    if (!newText.trim()) return;
+    try {
+      const { data } = await updateReply(rno, newText.trim());
+      if (data.ok) {
+        setEditingId(null);
+        setEditText("");
+        loadReplies();
+      } else {
+        alert("댓글 수정 실패: " + data.reason);
+      }
+    } catch (e) {
+      console.error("댓글 수정 실패:", e);
     }
   };
 
@@ -130,6 +274,8 @@ export default function BoardDetail() {
   const fileLabel = item.pfileDetail || item.pfileName;
   const fileHref = boardDownloadUrl(item.boardId || id);
 
+  const loginName = JSON.parse(sessionStorage.getItem("user") || "{}")?.mem_name || "사용자";
+
   return (
     <MobileShell>
       <div style={{ padding: "5px 20px 24px", backgroundColor: "#fff" }}>
@@ -152,12 +298,12 @@ export default function BoardDetail() {
 
         <Card>
           <CardHead>[{category}] {title}</CardHead>
-          <Meta>
-            {writer} ｜ {date}
-          </Meta>
+          <Meta>{writer} ｜ {date}</Meta>
           <CardHr />
           <BodyText>{content}</BodyText>
-
+          <CardFooter>
+            <Button onClick={goList}>목록</Button>
+          </CardFooter>
           {hasFile && (
             <>
               <CardHr />
@@ -169,14 +315,89 @@ export default function BoardDetail() {
               </Attachment>
             </>
           )}
-
-          <CardFooter>
-            <Button onClick={goList}>목록</Button>
-          </CardFooter>
         </Card>
       </div>
 
-      {/* 댓글 섹션은 API 확정되면 이어서 구현 */}
+      {/* 댓글 섹션 */}
+      <ReplySection>
+        <ReplyTitle>댓글 {replies.length}</ReplyTitle>
+
+        {replies.length === 0 ? (
+          <div style={{ color: "#777", padding: "8px 0" }}>댓글이 없습니다.</div>
+        ) : (
+          replies.map((r) => (
+            <ReplyItem key={r.rno}>
+              <ReplyTop>
+                <div>
+                  <ReplyWriter>{r.replyer}</ReplyWriter>
+                  <ReplyDate>| {fmtDate(r.regdate)}</ReplyDate>
+                </div>
+               <ReplyActions>
+  {editingId === r.rno ? (
+    <>
+      {/* 취소 → 저장 순서 */}
+      <ReplyBtnSmall onClick={() => setEditingId(null)}>
+        취소
+      </ReplyBtnSmall>
+      <ReplyBtnSmall
+        primary
+        onClick={() => onReplyUpdate(r.rno, editText)}
+      >
+        저장
+      </ReplyBtnSmall>
+    </>
+  ) : (
+    <>
+      {/* 기본 상태: 삭제 + 수정 */}
+      <ReplyBtnSmall
+        onClick={async () => {
+          if (!window.confirm("삭제하시겠습니까?")) return;
+          await deleteReply(r.rno);
+          setReplies(replies.filter((x) => x.rno !== r.rno));
+        }}
+      >
+        삭제
+      </ReplyBtnSmall>
+      <ReplyBtnSmall
+        primary
+        onClick={() => {
+          setEditingId(r.rno);
+          setEditText(r.replytext);
+        }}
+      >
+        수정
+      </ReplyBtnSmall>
+    </>
+  )}
+</ReplyActions>
+              </ReplyTop>
+
+              {editingId === r.rno ? (
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  style={{ width: "100%", minHeight: "60px", marginTop: "6px" }}
+                />
+              ) : (
+                <ReplyText>{r.replytext}</ReplyText>
+              )}
+            </ReplyItem>
+          ))
+        )}
+
+        {/* 댓글 입력 */}
+        <ReplyInputBox>
+          <ReplyHeader>
+            {loginName} ｜ {fmtDate(new Date())}
+          </ReplyHeader>
+          <ReplyTextarea
+            placeholder="댓글을 작성해주세요"
+            value={newReply}
+            onChange={(e) => setNewReply(e.target.value)}
+          />
+          <ReplySubmitBtn onClick={onReplySubmit}>등록</ReplySubmitBtn>
+        </ReplyInputBox>
+      </ReplySection>
     </MobileShell>
   );
 }

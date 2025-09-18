@@ -22,7 +22,6 @@ export function getStudent(memId) {
   return axios.get("/api/student", { params: { memId } });
 }
 
-/* === 로그인/세션/로그아웃 === */
 export async function loginUser(id, pwd) {
   try {
     return await axios.post("/api/login/index", { id, pwd });
@@ -101,20 +100,14 @@ export function getLecNoticeDetail(id, { increaseView = true } = {}) {
 export function createLecNoticeMultipart(formData) {
   return axios.post("/api/lecnotice", formData, {
     headers: { "Content-Type": "multipart/form-data" },
-  });
+  }).then(res => res.data);
 }
 export function createLecNoticeJson(body) {
   return createLecNoticeMultipart(toFormData(body));
 }
-export function updateLecNoticeJson(id, body) {
-  return axios.put(`/api/lecnotice/${id}`, toFormData(body), {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
-}
+
 export function updateLecNoticeMultipart(id, formData) {
-  return axios.put(`/api/lecnotice/${id}`, formData, {
-    headers: { "Content-Type": "multipart/form-data" },
-  });
+  return axios.post(`/api/lecnotice/${id}/update`, formData);
 }
 export function deleteLecNotice(id) {
   return axios.delete(`/api/lecnotice/${id}`);
@@ -192,3 +185,45 @@ export async function downloadBoardFile(id) {
   const res = await axios.get(url, { responseType: "blob" });
   return res.data;
 }
+export function increaseBoardView(boardId) {
+  return axios.post("/api/board/increaseView", null, { params: { boardId } });
+}
+
+export const createReply = (boardId, replytext) => {
+  const user = JSON.parse(sessionStorage.getItem("user") || "{}");
+
+  const fd = new FormData();
+  fd.append("boardId", boardId);
+  fd.append("replytext", replytext);
+  fd.append("memId", user.mem_id || "");
+  fd.append("memName", user.mem_name || "");
+
+  return axios.post("/api/reply/regist", fd, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+
+// 댓글 목록
+export const getReplyList = (boardId) =>
+  axios.get(`/api/reply/list/${boardId}`);
+
+// 댓글 수정
+export const updateReply = (rno, replytext) => {
+  const user = JSON.parse(sessionStorage.getItem("user") || "{}");
+
+  const fd = new FormData();
+  fd.append("replytext", replytext);
+  fd.append("memId", user.mem_id || "");
+
+  return axios.post(`/api/reply/${rno}/update`, fd, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+};
+// 댓글 삭제
+// 댓글 삭제
+export const deleteReply = (rno) => {
+  const user = JSON.parse(sessionStorage.getItem("user") || "{}");
+  return axios.delete(`/api/reply/${rno}`, {
+    params: { memId: user.mem_id || "" }
+  });
+};

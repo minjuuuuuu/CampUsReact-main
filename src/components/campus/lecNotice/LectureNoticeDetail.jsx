@@ -6,7 +6,6 @@ import {
   getUserSession,
   getLecNoticeDetail,
   updateLecNoticeMultipart,
-  updateLecNoticeJson,
   deleteLecNotice,
   downloadLecNoticeFile,
 } from "../api";
@@ -326,48 +325,40 @@ export default function LectureNoticeDetail() {
   };
 
   const onSaveEdit = async () => {
-    if (!noticeId) {
-      alert("잘못된 접근입니다(id 없음).");
-      return;
-    }
-    if (!title.trim()) {
-      alert("제목을 입력해주세요.");
-      return;
+  if (!noticeId) {
+    alert("잘못된 접근입니다(id 없음).");
+    return;
+  }
+  if (!title.trim()) {
+    alert("제목을 입력해주세요.");
+    return;
+  }
+
+  try {
+    const form = new FormData();
+    form.append("lecNoticeName", title);
+    form.append("lecNoticeDesc", desc);
+    if (newFile) {
+      form.append("files", newFile);
     }
 
-    try {
-      if (newFile) {
-        const form = new FormData();
-        form.append("lecNoticeId", String(noticeId));
-        form.append("lecNoticeName", title);
-        form.append("lecNoticeDesc", desc);
-        form.append("files", newFile);
-        const { data } = await updateLecNoticeMultipart(String(noticeId), form);
-        setItem((prev) => ({
-          ...prev,
-          lecNoticeName: data?.lecNoticeName ?? title,
-          lecNoticeDesc: data?.lecNoticeDesc ?? desc,
-          fileName: data?.fileName ?? prev?.fileName,
-          fileDetail: data?.fileDetail ?? prev?.fileDetail,
-        }));
-      } else {
-        await updateLecNoticeJson(String(noticeId), {
-          lecNoticeName: title,
-          lecNoticeDesc: desc,
-        });
-        setItem((prev) => ({
-          ...prev,
-          lecNoticeName: title,
-          lecNoticeDesc: desc,
-        }));
-      }
-      setEdit(false);
-      alert("수정되었습니다.");
-    } catch (e) {
-      console.error("공지 수정 실패:", e.response?.data || e);
-      alert("수정에 실패했습니다.");
-    }
-  };
+    const { data } = await updateLecNoticeMultipart(String(noticeId), form);
+
+    setItem((prev) => ({
+      ...prev,
+      lecNoticeName: data?.lecNoticeName ?? title,
+      lecNoticeDesc: data?.lecNoticeDesc ?? desc,
+      fileName: data?.fileName ?? prev?.fileName,
+      fileDetail: data?.fileDetail ?? prev?.fileDetail,
+    }));
+
+    setEdit(false);
+    alert("수정되었습니다.");
+  } catch (e) {
+    console.error("공지 수정 실패:", e.response?.data || e);
+    alert("수정에 실패했습니다.");
+  }
+};
 
   const onDelete = async () => {
     if (!noticeId) {

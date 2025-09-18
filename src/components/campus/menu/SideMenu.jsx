@@ -103,7 +103,7 @@ function SideMenu() {
       sessionStorage.setItem('lec_id', lecId);
 
       navigate(`/notice?memId=${encodeURIComponent(memId)}&lecId=${encodeURIComponent(lecId)}`);
-      closeMenu();
+ 
     } catch (err) {
       console.error(err);
       alert('전공을 설정하지 못했습니다.');

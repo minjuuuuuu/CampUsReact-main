@@ -179,7 +179,7 @@ function BoardList() {
       )}
       {items.map((it) => {
         const hasFile = it.pfileName && it.pfileName !== 'none.pdf';
-        const titleText = `[${it.category || '일반'}] ${it.boardName || ''}`;
+        const titleText = `[${it.boardCat || '일반'}] ${it.boardName || ''}`;
         const writer = it.memName || it.writer || it.memId || '-';
         const view = typeof it.viewCnt === 'number' ? it.viewCnt : (it.viewCnt ? Number(it.viewCnt) : 0);
 
